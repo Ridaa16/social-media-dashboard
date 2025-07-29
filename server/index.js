@@ -61,5 +61,5 @@ app.get('/api/analytics', (req, res) => {
   res.json(mockData);
 });
 
-const PORT = 5000;
+const PORT = 5000; //dur teri
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

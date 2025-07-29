@@ -26,14 +26,19 @@ import PieChart from '../components/PieChart';
 const Dashboard = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await axios.get('http://localhost:5000/api/analytics');
+        const response = await axios.get(
+          `${process.env.REACT_APP_API_BASE_URL}/api/analytics`
+        );
         setData(response.data);
-      } catch (error) {
-        console.error('Error fetching data:', error);
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching data:', err);
+        setError('Failed to load dashboard data. Please try again later.');
       } finally {
         setLoading(false);
       }
@@ -42,10 +47,26 @@ const Dashboard = () => {
     fetchData();
   }, []);
 
-  if (loading || !data) {
+  if (loading) {
     return (
       <Container maxWidth="lg" sx={{ py: 4 }}>
         <LinearProgress />
+      </Container>
+    );
+  }
+
+  if (error) {
+    return (
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Typography color="error">{error}</Typography>
+      </Container>
+    );
+  }
+
+  if (!data) {
+    return (
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Typography>No data available</Typography>
       </Container>
     );
   }
@@ -55,51 +76,66 @@ const Dashboard = () => {
       icon: <PeopleIcon fontSize="large" />,
       title: "Total Followers",
       value: data.followers?.data?.slice(-1)[0] || 0,
-      color: "primary"
+      color: "primary",
+      trend: data.followers?.trend || 'neutral'
     },
     {
       icon: <ThumbUpIcon fontSize="large" />,
       title: "Total Likes",
       value: data.engagement?.likes?.reduce((a, b) => a + b, 0) || 0,
-      color: "secondary"
+      color: "secondary",
+      trend: data.engagement?.likesTrend || 'neutral'
     },
     {
       icon: <CommentIcon fontSize="large" />,
       title: "Total Comments",
       value: data.engagement?.comments?.reduce((a, b) => a + b, 0) || 0,
-      color: "success"
+      color: "success",
+      trend: data.engagement?.commentsTrend || 'neutral'
     },
     {
       icon: <ShareIcon fontSize="large" />,
       title: "Total Shares",
       value: data.engagement?.shares?.reduce((a, b) => a + b, 0) || 0,
-      color: "warning"
+      color: "warning",
+      trend: data.engagement?.sharesTrend || 'neutral'
     },
     {
       icon: <TimelineIcon fontSize="large" />,
       title: "Total Reach",
       value: data.reach?.data?.reduce((a, b) => a + b, 0) || 0,
-      color: "info"
+      color: "info",
+      trend: data.reach?.trend || 'neutral'
     },
     {
       icon: <VisibilityIcon fontSize="large" />,
       title: "Total Impressions",
       value: data.impressions?.data?.reduce((a, b) => a + b, 0) || 0,
-      color: "error"
+      color: "error",
+      trend: data.impressions?.trend || 'neutral'
     },
     {
       icon: <VisibilityIcon fontSize="large" />,
       title: "Profile Views",
       value: data.profileViews?.data?.reduce((a, b) => a + b, 0) || 0,
-      color: "success"
+      color: "success",
+      trend: data.profileViews?.trend || 'neutral'
     }
   ];
+
+  const getTrendIcon = (trend) => {
+    switch (trend) {
+      case 'up': return '↑';
+      case 'down': return '↓';
+      default: return '→';
+    }
+  };
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
       <Typography variant="h4" component="h1" gutterBottom sx={{ mb: 4 }}>
         <TimelineIcon sx={{ verticalAlign: 'middle', mr: 1 }} />
-        Social Media Dashboard
+        {process.env.REACT_APP_DASHBOARD_TITLE}
       </Typography>
 
       {/* Stat Cards */}
@@ -127,9 +163,19 @@ const Dashboard = () => {
                     <Typography variant="subtitle2" color="textSecondary">
                       {card.title}
                     </Typography>
-                    <Typography variant="h4">
-                      {card.value.toLocaleString()}
-                    </Typography>
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <Typography variant="h4">
+                        {card.value.toLocaleString()}
+                      </Typography>
+                      <Typography 
+                        color={
+                          card.trend === 'up' ? 'success.main' : 
+                          card.trend === 'down' ? 'error.main' : 'text.secondary'
+                        }
+                      >
+                        {getTrendIcon(card.trend)}
+                      </Typography>
+                    </Box>
                   </Box>
                 </Box>
               </CardContent>
@@ -145,7 +191,7 @@ const Dashboard = () => {
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
-                Follower Growth
+                Follower Growth (Last 30 Days)
               </Typography>
               <Box sx={{ height: 400 }}>
                 <LineChart
@@ -163,7 +209,7 @@ const Dashboard = () => {
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
-                Reach Over Time
+                Reach Over Time (Last 30 Days)
               </Typography>
               <Box sx={{ height: 400 }}>
                 <LineChart
@@ -181,7 +227,7 @@ const Dashboard = () => {
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
-                Gender Distribution
+                Audience Gender Distribution
               </Typography>
               <Box sx={{ height: 400 }}>
                 <PieChart
@@ -190,6 +236,7 @@ const Dashboard = () => {
                     value: data.genderDistribution?.counts?.[i] || 0,
                     label: gender
                   }))}
+                  colors={['#36A2EB', '#FF6384', '#4BC0C0']}
                 />
               </Box>
             </CardContent>
@@ -201,15 +248,19 @@ const Dashboard = () => {
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
-                User Locations
+                Top User Locations
               </Typography>
               <Box sx={{ height: 400 }}>
                 <PieChart
-                  data={(data.locationStats?.locations || []).map((loc, i) => ({
-                    id: i,
-                    value: data.locationStats?.users?.[i] || 0,
-                    label: loc
-                  }))}
+                  data={(data.locationStats?.locations || [])
+                    .map((loc, i) => ({
+                      id: i,
+                      value: data.locationStats?.users?.[i] || 0,
+                      label: loc
+                    }))
+                    .sort((a, b) => b.value - a.value)
+                    .slice(0, 5)}
+                  colors={['#FF9F40', '#FFCD56', '#4BC0C0', '#9966FF', '#C9CBCF']}
                 />
               </Box>
             </CardContent>
@@ -221,7 +272,7 @@ const Dashboard = () => {
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
-                Engagement Breakdown
+                Engagement Breakdown (Last 30 Days)
               </Typography>
               <Box sx={{ height: 400 }}>
                 <BarChart
